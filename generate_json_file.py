@@ -16,7 +16,7 @@ def generate_field(type_index):
     if type_index == 3:
         return (generate_random_string(), {})
     if type_index == 4:
-        return (generate_random_string, [])
+        return (generate_random_string(), [])
 
 
 
@@ -35,15 +35,8 @@ def generate_new_random_field(max_type_span):
 
 def generate_json_string(max_level, max_field_span, max_array_len, max_type_span):
     noise = random.randint(0, 1)
-    json_body = {}
-    #for i in range(max_level):
-    #    if (i + noise) % 2 == 0:
-    #        key = generate_random_string()
-    #        value = generate_random_string()
-            
-            
+    json_body = {}        
 
-    json_body = {}
     if random.randint(0, 1) == 0:
         json_body = {}
     else:
@@ -60,6 +53,7 @@ def generate_json_string(max_level, max_field_span, max_array_len, max_type_span
     return json_body
 
 def main():
+    print(generate_new_random_field(5))
     json_body = generate_json_string(10, 5, 5, 5)
     with open("output.json", "w") as f:
         json.dump(json_body, f, indent=4)
