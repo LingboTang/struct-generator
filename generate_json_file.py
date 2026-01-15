@@ -18,8 +18,6 @@ def generate_field(type_index):
     if type_index == 4:
         return (generate_random_string(), [])
 
-
-
 def generate_random_field(max_type_span, json_body):
     for k in range(max_type_span):
         pair = generate_field(k)
@@ -32,6 +30,26 @@ def generate_new_random_field(max_type_span):
         json_body[pair[0]] = pair[1]
     return json_body
 
+def generate_new_random_json_array(max_array_len, max_type_span):
+    json_array = []
+    for i in range(max_array_len):
+        json_array.append(generate_new_random_field(max_type_span))
+    return json_array
+
+def generate_json_string_recursion(max_level, max_field_span, max_array_len, max_type_span, random_noise):
+    if max_level == 0 and random_noise == 0:
+        return {}
+    elif max_level == 0 and random_noise == 1:
+        return []
+    elif max_level == 1 and random_noise == 0:
+        return generate_new_random_field(max_type_span)
+    elif max_level == 1 and random_noise == 1:
+        return generate_new_random_json_array(max_array_len, max_type_span)
+
+    if random_noise == 0:
+        return {generate_random_string(): generate_json_string_recursion(max_level - 1, max_field_span, max_array_len, max_type_span, random.randint(0, 1))}
+    else:
+        return [generate_json_string_recursion(max_level - 1, max_field_span, max_array_len, max_type_span, random.randint(0, 1)) for i in range(max_array_len)]
 
 def generate_json_string(max_level, max_field_span, max_array_len, max_type_span):
     noise = random.randint(0, 1)
@@ -41,6 +59,8 @@ def generate_json_string(max_level, max_field_span, max_array_len, max_type_span
         json_body = {}
     else:
         json_body = []
+    
+
     for i in range(max_level):
         
         if type(json_body) == dict:
@@ -53,8 +73,8 @@ def generate_json_string(max_level, max_field_span, max_array_len, max_type_span
     return json_body
 
 def main():
-    print(generate_new_random_field(5))
-    json_body = generate_json_string(10, 5, 5, 5)
+    #json_body = generate_json_string(10, 5, 5, 5)
+    json_body = generate_json_string_recursion(3, 5, 5, 5, random.randint(0,1))
     with open("output.json", "w") as f:
         json.dump(json_body, f, indent=4)
 
