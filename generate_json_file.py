@@ -51,29 +51,7 @@ def generate_json_string_recursion(max_level, max_field_span, max_array_len, max
     else:
         return [generate_json_string_recursion(max_level - 1, max_field_span, max_array_len, max_type_span, random.randint(0, 1)) for i in range(max_array_len)]
 
-def generate_json_string(max_level, max_field_span, max_array_len, max_type_span):
-    noise = random.randint(0, 1)
-    json_body = {}        
-
-    if random.randint(0, 1) == 0:
-        json_body = {}
-    else:
-        json_body = []
-    
-
-    for i in range(max_level):
-        
-        if type(json_body) == dict:
-            for j in range(max_field_span):
-                generate_random_field(max_type_span, json_body)
-        if type(json_body) == list:
-            for j in range(max_array_len):
-                json_body.append(generate_new_random_field(max_type_span))    
-    
-    return json_body
-
 def main():
-    #json_body = generate_json_string(10, 5, 5, 5)
     json_body = generate_json_string_recursion(3, 5, 5, 5, random.randint(0,1))
     with open("output.json", "w") as f:
         json.dump(json_body, f, indent=4)
