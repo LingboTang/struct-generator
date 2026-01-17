@@ -2,31 +2,45 @@ import json
 import random
 import os
 import string
+from enum import Enum, auto
+
+class FieldType(Enum):
+    STRING_PAIR = 0
+    STRING_INT = 1
+    STRING_FLOAT = 2
+    STRING_DICT = 3
+    STRING_LIST = 4
 
 def generate_random_string():
     return ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))
 
-def generate_field(type_index):
-    if type_index == 0:
-        return (generate_random_string(), generate_random_string())
-    if type_index == 1:
-        return (generate_random_string(), random.randint(0, 100))
-    if type_index == 2:
-        return (generate_random_string(), round(random.uniform(0, 100), 2))
-    if type_index == 3:
-        return (generate_random_string(), {})
-    if type_index == 4:
-        return (generate_random_string(), [])
+def generate_field(field_type: FieldType):
+    key = generate_random_string()
+    
+    match field_type:
+        case FieldType.STRING_PAIR:
+            value = generate_random_string()
+        case FieldType.STRING_INT:
+            value = random.randint(0, 100)
+        case FieldType.STRING_FLOAT:
+            value = round(random.uniform(0, 100), 2)
+        case FieldType.STRING_DICT:
+            value = {}
+        case FieldType.STRING_LIST:
+            value = []
+        case _:
+            raise ValueError(f"Unknown field type: {field_type}")
+    return (key, value)
 
 def generate_random_field(max_type_span, json_body):
     for k in range(max_type_span):
-        pair = generate_field(k)
+        pair = generate_field(FieldType(k))
         json_body[pair[0]] = pair[1]
 
 def generate_new_random_field(max_type_span):
     json_body = {}
     for k in range(max_type_span):
-        pair = generate_field(k)
+        pair = generate_field(FieldType(k))
         json_body[pair[0]] = pair[1]
     return json_body
 
