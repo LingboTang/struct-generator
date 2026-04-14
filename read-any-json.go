@@ -1,36 +1,26 @@
 package main
 
 import (
-	"fmt"
 	"encoding/json"
-	"os"
-	"io"
 	"flag"
+	"fmt"
+	"io"
+	"os"
+	"strings"
+	"unicode"
 )
 
-var (
-	inputFile string
-)
+var inputFile string
 
 func main() {
-
 	flag.StringVar(&inputFile, "input", "inputFile", "string of input file name")
-	//flag.StringVar(&outputFile, "output", "outputFile", "string of output file name")
-
 	flag.Parse()
 
-	fmt.Printf("Input file: %s\n", inputFile)
-	//fmt.Println("Output file: ", outputFile)
-
 	jsonFile, err := os.Open(inputFile)
-
 	if err != nil {
 		fmt.Println(err)
+		return
 	}
-
-	fmt.Println("Successfully Opened json file")
-
-
 	defer jsonFile.Close()
 
 	decoder := json.NewDecoder(jsonFile)
@@ -38,96 +28,121 @@ func main() {
 	t, err := decoder.Token()
 	if err != nil {
 		if err == io.EOF {
-			fmt.Printf("File %s empty.\n\n", jsonFile)
+			fmt.Printf("File %s empty.\n", inputFile)
 		} else {
-			fmt.Printf("Error peeking token from %s: %v\n\n", jsonFile, err)
+			fmt.Printf("Error reading token from %s: %v\n", inputFile, err)
 		}
 		return
 	}
 
-	fmt.Printf("  First JSON token type: %T, Value: %v\n", t, t)
-
 	if _, err := jsonFile.Seek(0, io.SeekStart); err != nil {
-		fmt.Printf("Error seeking file %s: %v\n\n", inputFile, err)
+		fmt.Printf("Error seeking file %s: %v\n", inputFile, err)
+		return
 	}
-
 	decoder = json.NewDecoder(jsonFile)
 
+	var raw interface{}
+	if err := decoder.Decode(&raw); err != nil {
+		fmt.Printf("Error decoding %s: %v\n", inputFile, err)
+		return
+	}
 
-	//var data map[string]interface{}
-
-	switch v := t.(type) {
-		case json.Delim: // Indicates a JSON object '{' or array '['
-			if v.String() == "{" {
-				fmt.Println("  Detected: JSON Object")
-				var data map[string]interface{} // Declare for object
-				if err := decoder.Decode(&data); err != nil {
-					fmt.Printf("  Error decoding object from %s: %v\n", jsonFile, err)
-					return
-				}
-				fmt.Println("  Decoded object (unstructured, field by field):")
-				for key, val := range data {
-					fmt.Printf("    Field: %s, Value: %v, GoType: %T\n", key, val, val)
-					// Further type-specific processing can happen here
-				}
-			} else if v.String() == "[" {
-				fmt.Println("  Detected: JSON Array")
-				var data []interface{} // Declare for array
-				if err := decoder.Decode(&data); err != nil {
-					fmt.Printf("  Error decoding array from %s: %v\n", jsonFile, err)
-					return
-				}
-				fmt.Println("  Decoded array (unstructured, element by element):")
-				for i, elem := range data {
-					fmt.Printf("    Element[%d]: %v, GoType: %T\n", i, elem, elem)
-					// If array elements are objects, you can cast them:
-					if objElem, ok := elem.(map[string]interface{}); ok {
-						fmt.Println("      (Array element is an object, iterating fields):")
-						for objKey, objVal := range objElem {
-							fmt.Printf("        Sub-Field: %s, Value: %v, GoType: %T\n", objKey, objVal, objVal)
-						}
-					}
-				}
-			}
-		case bool:
-			fmt.Println("  Detected: JSON Boolean")
-			var data bool
-			if err := decoder.Decode(&data); err != nil {
-				fmt.Printf("  Error decoding boolean from %s: %v\n", jsonFile, err)
+	// Unwrap top-level array: use first element as representative object
+	switch t.(type) {
+	case json.Delim:
+		delim := t.(json.Delim).String()
+		if delim == "[" {
+			arr, ok := raw.([]interface{})
+			if !ok || len(arr) == 0 {
+				fmt.Println("Empty or invalid top-level array.")
 				return
 			}
-			fmt.Printf("  Decoded boolean value: %t\n", data)
-		case float64: // JSON numbers
-			fmt.Println("  Detected: JSON Number")
-			var data float64
-			if err := decoder.Decode(&data); err != nil {
-				fmt.Printf("  Error decoding number from %s: %v\n", jsonFile, err)
-				return
-			}
-			fmt.Printf("  Decoded number value: %f\n", data)
-		case string:
-			fmt.Println("  Detected: JSON String")
-			var data string
-			if err := decoder.Decode(&data); err != nil {
-				fmt.Printf("  Error decoding string from %s: %v\n", jsonFile, err)
-				return
-			}
-			fmt.Printf("  Decoded string value: %q\n", data)
-		case nil: // JSON null
-			fmt.Println("  Detected: JSON Null")
-			var data interface{} // null decodes to nil Go interface{}
-			if err := decoder.Decode(&data); err != nil {
-				fmt.Printf("  Error decoding null from %s: %v\n", jsonFile, err)
-				return
-			}
-			fmt.Printf("  Decoded null value: %v\n", data)
-		default:
-			fmt.Printf("  Detected: Unknown top-level JSON type: %T\n", v)
+			raw = arr[0]
 		}
-		fmt.Println("-----------------------------------------\n")
+	default:
+		fmt.Println("Top-level JSON must be an object or array of objects.")
+		return
+	}
 
+	obj, ok := raw.(map[string]interface{})
+	if !ok {
+		fmt.Println("Top-level JSON must be an object or array of objects.")
+		return
+	}
 
-	
+	structs := []string{}
+	generateStruct("Root", obj, &structs)
 
+	for i := len(structs) - 1; i >= 0; i-- {
+		fmt.Println(structs[i])
+	}
+}
 
+// generateStruct emits a Go struct definition for a JSON object and recurses
+// into nested objects/arrays. Results are appended to structs in depth-first
+// order so callers can reverse for top-down output.
+func generateStruct(name string, obj map[string]interface{}, structs *[]string) string {
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "type %s struct {\n", name)
+
+	for key, val := range obj {
+		fieldName := toPascalCase(key)
+		goType := resolveType(fieldName, val, structs)
+		fmt.Fprintf(&sb, "\t%s %s `json:\"%s\"`\n", fieldName, goType, key)
+	}
+
+	sb.WriteString("}")
+	*structs = append(*structs, sb.String())
+	return name
+}
+
+// resolveType returns the Go type string for a JSON value, recursing into
+// nested objects and arrays and registering new structs as needed.
+func resolveType(fieldName string, val interface{}, structs *[]string) string {
+	switch v := val.(type) {
+	case map[string]interface{}:
+		generateStruct(fieldName, v, structs)
+		return fieldName
+	case []interface{}:
+		elemType := resolveArrayElemType(fieldName, v, structs)
+		return "[]" + elemType
+	case string:
+		return "string"
+	case float64:
+		return "float64"
+	case bool:
+		return "bool"
+	case nil:
+		return "interface{}"
+	default:
+		return "interface{}"
+	}
+}
+
+// resolveArrayElemType inspects the first element of a JSON array to determine
+// the element Go type.
+func resolveArrayElemType(fieldName string, arr []interface{}, structs *[]string) string {
+	if len(arr) == 0 {
+		return "interface{}"
+	}
+	return resolveType(fieldName+"Item", arr[0], structs)
+}
+
+// toPascalCase converts a JSON key (snake_case, camelCase, kebab-case) to PascalCase.
+func toPascalCase(s string) string {
+	var sb strings.Builder
+	capitalizeNext := true
+	for _, r := range s {
+		if r == '_' || r == '-' || r == ' ' {
+			capitalizeNext = true
+			continue
+		}
+		if capitalizeNext {
+			sb.WriteRune(unicode.ToUpper(r))
+			capitalizeNext = false
+		} else {
+			sb.WriteRune(r)
+		}
+	}
+	return sb.String()
 }
