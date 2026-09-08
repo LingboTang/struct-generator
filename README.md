@@ -1,88 +1,137 @@
 # struct-generator
-Generic struct generator based on unstructured json and other input files
 
+A Go tool that reads any JSON file and generates Go struct definitions from it, paired with a Python script for generating random test JSON.
 
-Read Any JSON
-A flexible Go utility that reads a generic JSON file, detects its top-level type (Object, Array, or Primitive), and prints the structure and values to the console.
+---
 
-Prerequisites
-Go (Golang) installed on your machine.
+## read-any-json.go
 
-Installation
-Save the code as read-any-json.go.
+Reads a JSON file and prints Go struct type definitions to stdout. It handles nested objects, arrays, and all standard JSON primitives, mapping them to appropriate Go types.
 
-Open your terminal or command prompt.
+### Type Mapping
 
-Build the executable:
+| JSON Type | Go Type |
+|-----------|---------|
+| string | `string` |
+| number | `float64` |
+| boolean | `bool` |
+| object | named struct |
+| array | `[]<elem type>` |
+| null | `interface{}` |
 
-Bash
+Field names are converted from any casing (snake_case, camelCase, kebab-case) to PascalCase. Each field includes a `json:"..."` struct tag preserving the original key name.
+
+For top-level arrays, the first element is used as the representative object to derive the struct shape.
+
+### Prerequisites
+
+Go installed on your machine.
+
+### Build
+
+```bash
 go build read-any-json.go
-This will create a binary file named read-any-json (or read-any-json.exe on Windows).
+```
 
-Usage
-You can run the tool by pointing it to a JSON file using the -input flag.
+### Usage
 
-Basic Command
-
-Bash
+```bash
 ./read-any-json -input <path_to_json_file>
-(Note: On Windows, use read-any-json.exe -input <path_to_json_file>)
+```
 
-Using go run directly
+Or run directly without building:
 
-If you do not want to build a binary, you can run the source code directly:
+```bash
+go run read-any-json.go -input <path_to_json_file>
+```
 
-Bash
-go run read-any-json.go -input data.json
-Examples
-1. Reading a JSON Object
+### Example
 
-Input (config.json):
+Input (`config.json`):
 
-JSON
+```json
 {
-  "host": "localhost",
-  "port": 8080
+  "user_name": "alice",
+  "age": 30,
+  "active": true,
+  "address": {
+    "city": "New York",
+    "zip": "10001"
+  },
+  "scores": [9.5, 8.0]
 }
+```
+
 Command:
 
-Bash
-./read-any-json -input config.json
+```bash
+go run read-any-json.go -input config.json
+```
+
 Output:
 
-Plaintext
-Input file: config.json
-Successfully Opened json file
-  First JSON token type: json.Delim, Value: {
-  Detected: JSON Object
-  Decoded object (unstructured, field by field):
-    Field: host, Value: localhost, GoType: string
-    Field: port, Value: 8080, GoType: float64
-2. Reading a JSON Array
+```go
+type Address struct {
+    City string `json:"city"`
+    Zip  string `json:"zip"`
+}
 
-Input (users.json):
+type Root struct {
+    UserName string  `json:"user_name"`
+    Age      float64 `json:"age"`
+    Active   bool    `json:"active"`
+    Address  Address `json:"address"`
+    Scores   []float64 `json:"scores"`
+}
+```
 
-JSON
-["alice", "bob", "charlie"]
-Command:
+---
 
-Bash
-./read-any-json -input users.json
-Output:
+## generate_json_file.py
 
-Plaintext
-  Detected: JSON Array
-  Decoded array (unstructured, element by element):
-    Element[0]: alice, GoType: string
-    Element[1]: bob, GoType: string
-    ...
-How It Works
-Flag Parsing: The program accepts an input filename via the command line flag.
+Generates a random nested JSON file and writes it to `output.json`. Useful for testing `read-any-json.go` with varied structures.
 
-Token Peeking: It reads the very first token of the file to determine if the JSON is an Object ({), Array ([), or a primitive value (String, Number, Boolean, Null).
+### Prerequisites
 
-Rewinding: It rewinds the file pointer to the beginning.
+Python 3.10+ (uses `match`/`case` syntax).
 
-Dynamic Decoding: Based on the detected type, it creates the appropriate Go data structure (e.g., map[string]interface{} or []interface{}) and decodes the file.
+### Usage
 
-Inspection: It iterates over the decoded data and prints the keys, values, and underlying Go types.
+```bash
+python generate_json_file.py
+```
+
+Output is written to `output.json` in the current directory.
+
+### How It Works
+
+The generator builds a JSON structure recursively with these controls (configured in `main()`):
+
+| Parameter | Description |
+|-----------|-------------|
+| `max_level` | Maximum nesting depth |
+| `max_field_span` | Maximum number of fields per object |
+| `max_array_len` | Maximum number of elements per array |
+| `max_type_span` | Number of field types to include per object |
+
+At each level, it randomly chooses to produce either an object or an array. Field types are drawn from the `FieldType` enum:
+
+| Enum Value | Produces |
+|------------|---------|
+| `STRING_PAIR` | `string` value |
+| `STRING_INT` | `int` value |
+| `STRING_FLOAT` | `float` value |
+| `STRING_DICT` | nested `{}` object |
+| `STRING_LIST` | nested `[]` array |
+
+Field keys are random 10-character alphanumeric strings.
+
+### Typical Workflow
+
+```bash
+# 1. Generate a random JSON file
+python generate_json_file.py
+
+# 2. Generate Go structs from it
+go run read-any-json.go -input output.json
+```
