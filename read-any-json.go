@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"go/format"
 	"io"
 	"os"
 	"strings"
@@ -11,9 +12,11 @@ import (
 )
 
 var inputFile string
+var outputFile string
 
 func main() {
 	flag.StringVar(&inputFile, "input", "inputFile", "string of input file name")
+	flag.StringVar(&outputFile, "output", "struct.go", "path to write the generated Go struct definitions to")
 	flag.Parse()
 
 	jsonFile, err := os.Open(inputFile)
@@ -73,9 +76,25 @@ func main() {
 	structs := []string{}
 	generateStruct("Root", obj, &structs)
 
+	var sb strings.Builder
+	sb.WriteString("package main\n\n")
 	for i := len(structs) - 1; i >= 0; i-- {
-		fmt.Println(structs[i])
+		sb.WriteString(structs[i])
+		sb.WriteString("\n\n")
 	}
+
+	src, err := format.Source([]byte(sb.String()))
+	if err != nil {
+		fmt.Printf("Error formatting generated code: %v\n", err)
+		return
+	}
+
+	if err := os.WriteFile(outputFile, src, 0644); err != nil {
+		fmt.Printf("Error writing %s: %v\n", outputFile, err)
+		return
+	}
+
+	fmt.Printf("Wrote struct definitions to %s\n", outputFile)
 }
 
 // generateStruct emits a Go struct definition for a JSON object and recurses
