@@ -66,7 +66,7 @@ def generate_json_string_recursion(max_level, max_field_span, max_array_len, max
         return [generate_json_string_recursion(max_level - 1, max_field_span, max_array_len, max_type_span, random.randint(0, 1)) for i in range(max_array_len)]
 
 def main():
-    json_body = generate_json_string_recursion(5, 5, 5, 5, random.randint(0,1))
+    json_body = generate_json_string_recursion(5, 1, 1, 1, random.randint(0,1))
     with open("output.json", "w") as f:
         json.dump(json_body, f, indent=4)
 
