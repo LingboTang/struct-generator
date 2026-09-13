@@ -31,4 +31,5 @@ go.work.sum
 # .idea/
 # .vscode/
 output.json
+struct.go
 .DS_Store

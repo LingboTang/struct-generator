@@ -1,83 +1,47 @@
-package main
+// Package structgen generates Go struct definitions from JSON documents.
+package structgen
 
 import (
 	"encoding/json"
-	"flag"
 	"fmt"
 	"go/format"
 	"io"
-	"os"
 	"strings"
 	"unicode"
 )
 
-var inputFile string
-var outputFile string
-
-func main() {
-	flag.StringVar(&inputFile, "input", "inputFile", "string of input file name")
-	flag.StringVar(&outputFile, "output", "struct.go", "path to write the generated Go struct definitions to")
-	flag.Parse()
-
-	jsonFile, err := os.Open(inputFile)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	defer jsonFile.Close()
-
-	decoder := json.NewDecoder(jsonFile)
-
-	t, err := decoder.Token()
-	if err != nil {
-		if err == io.EOF {
-			fmt.Printf("File %s empty.\n", inputFile)
-		} else {
-			fmt.Printf("Error reading token from %s: %v\n", inputFile, err)
-		}
-		return
-	}
-
-	if _, err := jsonFile.Seek(0, io.SeekStart); err != nil {
-		fmt.Printf("Error seeking file %s: %v\n", inputFile, err)
-		return
-	}
-	decoder = json.NewDecoder(jsonFile)
-
+// Generate reads a JSON document from r and returns generated Go struct
+// definitions covering its shape, declared under the given package name.
+//
+// The top-level JSON value must be an object, or an array of objects — in
+// which case the first element is used as the representative shape. Nested
+// objects and arrays are recursively turned into their own named structs.
+func Generate(r io.Reader, packageName string) (string, error) {
 	var raw interface{}
-	if err := decoder.Decode(&raw); err != nil {
-		fmt.Printf("Error decoding %s: %v\n", inputFile, err)
-		return
+	if err := json.NewDecoder(r).Decode(&raw); err != nil {
+		if err == io.EOF {
+			return "", fmt.Errorf("input is empty")
+		}
+		return "", fmt.Errorf("decoding JSON: %w", err)
 	}
 
-	// Unwrap top-level array: use first element as representative object
-	switch t.(type) {
-	case json.Delim:
-		delim := t.(json.Delim).String()
-		if delim == "[" {
-			arr, ok := raw.([]interface{})
-			if !ok || len(arr) == 0 {
-				fmt.Println("Empty or invalid top-level array.")
-				return
-			}
-			raw = arr[0]
+	if arr, ok := raw.([]interface{}); ok {
+		if len(arr) == 0 {
+			return "", fmt.Errorf("top-level array is empty")
 		}
-	default:
-		fmt.Println("Top-level JSON must be an object or array of objects.")
-		return
+		raw = arr[0]
 	}
 
 	obj, ok := raw.(map[string]interface{})
 	if !ok {
-		fmt.Println("Top-level JSON must be an object or array of objects.")
-		return
+		return "", fmt.Errorf("top-level JSON must be an object or array of objects")
 	}
 
 	structs := []string{}
 	generateStruct("Root", obj, &structs)
 
 	var sb strings.Builder
-	sb.WriteString("package main\n\n")
+	fmt.Fprintf(&sb, "package %s\n\n", packageName)
 	for i := len(structs) - 1; i >= 0; i-- {
 		sb.WriteString(structs[i])
 		sb.WriteString("\n\n")
@@ -85,16 +49,9 @@ func main() {
 
 	src, err := format.Source([]byte(sb.String()))
 	if err != nil {
-		fmt.Printf("Error formatting generated code: %v\n", err)
-		return
+		return "", fmt.Errorf("formatting generated code: %w", err)
 	}
-
-	if err := os.WriteFile(outputFile, src, 0644); err != nil {
-		fmt.Printf("Error writing %s: %v\n", outputFile, err)
-		return
-	}
-
-	fmt.Printf("Wrote struct definitions to %s\n", outputFile)
+	return string(src), nil
 }
 
 // generateStruct emits a Go struct definition for a JSON object and recurses
