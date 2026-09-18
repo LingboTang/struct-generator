@@ -210,6 +210,8 @@ Request bodies are capped at 10 MiB, and a panic in a handler is recovered and r
 
 Generates a random nested JSON file and writes it to `output.json`. Useful for testing `structgen` with varied structures.
 
+This script lives outside the repo at `~/json_generator/generate_json_file.py`.
+
 ### Prerequisites
 
 Python 3.10+ (uses `match`/`case` syntax).
@@ -217,7 +219,7 @@ Python 3.10+ (uses `match`/`case` syntax).
 ### Usage
 
 ```bash
-python generate_json_file.py
+python ~/json_generator/generate_json_file.py
 ```
 
 Output is written to `output.json` in the current directory.
@@ -249,7 +251,7 @@ Field keys are random 10-character alphanumeric strings.
 
 ```bash
 # 1. Generate a random JSON file
-python generate_json_file.py
+python ~/json_generator/generate_json_file.py
 
 # 2. Generate Go structs from it
 go run ./cmd/struct-generator -input output.json
