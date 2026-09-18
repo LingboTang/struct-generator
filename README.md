@@ -159,11 +159,16 @@ Request body:
 
 Before parsing, `payload` is trimmed and stray C0 control bytes (raw, unescaped `\r`, `\b`, `\f`, `\v`, etc.) are stripped, since those make the JSON invalid unless properly escaped. `\n` and `\t` are left as-is.
 
-Response (`200 OK`):
+Response (`200 OK`): the raw generated Go source, served as a file download named `schema.go`.
 
-```json
-{
-  "result": "package models\n\ntype Root struct {\n\tActive bool `json:\"active\"`\n}\n"
+```
+Content-Type: text/x-go; charset=utf-8
+Content-Disposition: attachment; filename="schema.go"
+
+package models
+
+type Root struct {
+	Active bool `json:"active"`
 }
 ```
 
@@ -182,12 +187,19 @@ Returns `200 OK` with an empty body. Useful for liveness checks.
 ### Example
 
 ```bash
-curl -s -X POST localhost:8080/generate \
+curl -s -O -J -X POST localhost:8080/generate \
   -d '{"payload": "{\"user_name\": \"alice\", \"age\": 30}", "package": "models"}'
 ```
 
-```json
-{"result":"package models\n\ntype Root struct {\n\tUserName string  `json:\"user_name\"`\n\tAge      float64 `json:\"age\"`\n}\n"}
+Saves `schema.go` in the current directory:
+
+```go
+package models
+
+type Root struct {
+	UserName string  `json:"user_name"`
+	Age      float64 `json:"age"`
+}
 ```
 
 Request bodies are capped at 10 MiB, and a panic in a handler is recovered and returned as a `500 Internal Server Error` instead of crashing the process.

@@ -23,15 +23,17 @@ func TestGenerateHandler_Success(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
 	}
-
-	var resp generateResponse
-	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("decoding response: %v", err)
+	if ct := rr.Header().Get("Content-Type"); ct != "text/x-go; charset=utf-8" {
+		t.Errorf("unexpected Content-Type: %q", ct)
+	}
+	if cd := rr.Header().Get("Content-Disposition"); cd != `attachment; filename="schema.go"` {
+		t.Errorf("unexpected Content-Disposition: %q", cd)
 	}
 
+	result := rr.Body.String()
 	for _, want := range []string{"package models", "type Root struct", "Name string", "Age", "float64"} {
-		if !strings.Contains(resp.Result, want) {
-			t.Errorf("expected result to contain %q, got:\n%s", want, resp.Result)
+		if !strings.Contains(result, want) {
+			t.Errorf("expected result to contain %q, got:\n%s", want, result)
 		}
 	}
 }
@@ -43,13 +45,8 @@ func TestGenerateHandler_DefaultsPackageToMain(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
 	}
-
-	var resp generateResponse
-	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("decoding response: %v", err)
-	}
-	if !strings.Contains(resp.Result, "package main") {
-		t.Errorf("expected default package main, got:\n%s", resp.Result)
+	if !strings.Contains(rr.Body.String(), "package main") {
+		t.Errorf("expected default package main, got:\n%s", rr.Body.String())
 	}
 }
 
@@ -66,13 +63,8 @@ func TestGenerateHandler_StripsStrayControlCharacters(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
 	}
-
-	var resp generateResponse
-	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("decoding response: %v", err)
-	}
-	if !strings.Contains(resp.Result, "Name string") {
-		t.Errorf("expected result to contain %q, got:\n%s", "Name string", resp.Result)
+	if !strings.Contains(rr.Body.String(), "Name string") {
+		t.Errorf("expected result to contain %q, got:\n%s", "Name string", rr.Body.String())
 	}
 }
 

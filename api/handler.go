@@ -21,9 +21,9 @@ type generateRequest struct {
 	Package string `json:"package,omitempty"`
 }
 
-type generateResponse struct {
-	Result string `json:"result"`
-}
+// schemaFilename is the filename the generated struct source is served
+// under on success.
+const schemaFilename = "schema.go"
 
 type errorResponse struct {
 	Error string `json:"error"`
@@ -67,7 +67,10 @@ func generateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, generateResponse{Result: src})
+	w.Header().Set("Content-Type", "text/x-go; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="`+schemaFilename+`"`)
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(src))
 }
 
 func writeJSON(w http.ResponseWriter, status int, body interface{}) {
