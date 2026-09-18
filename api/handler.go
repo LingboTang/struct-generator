@@ -3,6 +3,7 @@ package api
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strings"
 
@@ -46,12 +47,14 @@ func generateHandler(w http.ResponseWriter, r *http.Request) {
 
 	var req generateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Printf("generate: decoding request body: %v", err)
 		writeError(w, http.StatusBadRequest, "decoding request body: "+err.Error())
 		return
 	}
 
 	req.Payload = sanitizePayload(req.Payload)
 	if req.Payload == "" {
+		log.Printf("generate: rejected empty payload")
 		writeError(w, http.StatusBadRequest, "payload must not be empty")
 		return
 	}
@@ -63,9 +66,12 @@ func generateHandler(w http.ResponseWriter, r *http.Request) {
 
 	src, err := structgen.Generate(strings.NewReader(req.Payload), packageName)
 	if err != nil {
+		log.Printf("generate: generating struct for package %q: %v", packageName, err)
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+
+	log.Printf("generate: generated struct source for package %q (%d bytes in, %d bytes out)", packageName, len(req.Payload), len(src))
 
 	w.Header().Set("Content-Type", "text/x-go; charset=utf-8")
 	w.Header().Set("Content-Disposition", `attachment; filename="`+schemaFilename+`"`)
