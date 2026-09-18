@@ -4,6 +4,7 @@ A Go library and CLI that reads any JSON document and generates matching Go stru
 
 - [`structgen`](./structgen) — importable Go package with the core `Generate` function.
 - [`cmd/struct-generator`](./cmd/struct-generator) — CLI wrapping the package.
+- [`cmd/api-server`](./cmd/api-server) — REST API wrapping the package.
 
 ---
 
@@ -122,6 +123,72 @@ type Root struct {
 	Scores   []float64 `json:"scores"`
 }
 ```
+
+---
+
+## cmd/api-server (REST API)
+
+A small HTTP server (built on the standard library's `net/http`, no external router) that wraps `structgen.Generate` behind a single endpoint.
+
+### Run
+
+```bash
+go run ./cmd/api-server -addr :8080
+```
+
+### Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-addr` | `:8080` | Address to listen on |
+
+### Endpoints
+
+#### `POST /generate`
+
+Request body:
+
+```json
+{
+  "payload": "<the JSON document to generate structs from, as a string>",
+  "package": "models"
+}
+```
+
+`payload` is required and must be a string containing valid JSON. `package` is optional and defaults to `main`.
+
+Response (`200 OK`):
+
+```json
+{
+  "result": "package models\n\ntype Root struct {\n\tActive bool `json:\"active\"`\n}\n"
+}
+```
+
+Errors (`400 Bad Request`):
+
+```json
+{
+  "error": "payload must not be empty"
+}
+```
+
+#### `GET /healthz`
+
+Returns `200 OK` with an empty body. Useful for liveness checks.
+
+### Example
+
+```bash
+curl -s -X POST localhost:8080/generate \
+  -d '{"payload": "{\"user_name\": \"alice\", \"age\": 30}", "package": "models"}'
+```
+
+```json
+{"result":"package models\n\ntype Root struct {\n\tUserName string  `json:\"user_name\"`\n\tAge      float64 `json:\"age\"`\n}\n"}
+```
+
+Request bodies are capped at 10 MiB, and a panic in a handler is recovered and returned as a `500 Internal Server Error` instead of crashing the process.
 
 ---
 
