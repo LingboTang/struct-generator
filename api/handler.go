@@ -50,7 +50,8 @@ func generateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if strings.TrimSpace(req.Payload) == "" {
+	req.Payload = sanitizePayload(req.Payload)
+	if req.Payload == "" {
 		writeError(w, http.StatusBadRequest, "payload must not be empty")
 		return
 	}
@@ -77,4 +78,23 @@ func writeJSON(w http.ResponseWriter, status int, body interface{}) {
 
 func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, errorResponse{Error: msg})
+}
+
+// sanitizePayload trims surrounding whitespace and strips stray C0 control
+// characters (e.g. raw \r, \b, \f, \v bytes) from the payload. JSON only
+// permits such characters inside string literals when properly escaped
+// (e.g. "\\r"); an unescaped raw control byte makes the document invalid and
+// would otherwise cause json decoding to fail even though the payload is
+// "morally" the same document. \n and \t are left alone since they commonly
+// appear as insignificant whitespace between tokens in pretty-printed JSON.
+func sanitizePayload(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		if r < 0x20 && r != '\n' && r != '\t' {
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return strings.TrimSpace(b.String())
 }

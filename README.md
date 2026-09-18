@@ -157,6 +157,8 @@ Request body:
 
 `payload` is required and must be a string containing valid JSON. `package` is optional and defaults to `main`.
 
+Before parsing, `payload` is trimmed and stray C0 control bytes (raw, unescaped `\r`, `\b`, `\f`, `\v`, etc.) are stripped, since those make the JSON invalid unless properly escaped. `\n` and `\t` are left as-is.
+
 Response (`200 OK`):
 
 ```json

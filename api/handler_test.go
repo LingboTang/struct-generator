@@ -53,6 +53,50 @@ func TestGenerateHandler_DefaultsPackageToMain(t *testing.T) {
 	}
 }
 
+func TestGenerateHandler_StripsStrayControlCharacters(t *testing.T) {
+	// Raw, unescaped control bytes (\r, \b) inside a string literal make the
+	// JSON invalid; sanitizePayload should strip them so decoding still succeeds.
+	inner := "{\"name\": \"ada\rlovelace\", \"note\": \"line1\bline2\"}"
+	reqBody, err := json.Marshal(map[string]string{"payload": inner})
+	if err != nil {
+		t.Fatalf("marshaling request: %v", err)
+	}
+
+	rr := doRequest(t, http.MethodPost, "/generate", string(reqBody))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var resp generateResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decoding response: %v", err)
+	}
+	if !strings.Contains(resp.Result, "Name string") {
+		t.Errorf("expected result to contain %q, got:\n%s", "Name string", resp.Result)
+	}
+}
+
+func TestSanitizePayload(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"trims whitespace", "  {\"a\":1}  \n", "{\"a\":1}"},
+		{"strips carriage return", "{\"a\":\"x\ry\"}", "{\"a\":\"xy\"}"},
+		{"strips backspace", "{\"a\":\"x\by\"}", "{\"a\":\"xy\"}"},
+		{"strips form feed and vertical tab", "{\"a\":\"x\f\vy\"}", "{\"a\":\"xy\"}"},
+		{"keeps tabs and newlines", "{\n\t\"a\": 1\n}", "{\n\t\"a\": 1\n}"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := sanitizePayload(c.in); got != c.want {
+				t.Errorf("sanitizePayload(%q) = %q, want %q", c.in, got, c.want)
+			}
+		})
+	}
+}
+
 func TestGenerateHandler_EmptyPayload(t *testing.T) {
 	rr := doRequest(t, http.MethodPost, "/generate", `{"payload": ""}`)
 	if rr.Code != http.StatusBadRequest {
